@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Game</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/js/bootstrap.min.js"></script>
+
+  <!-- Load the Paper.js library -->
+  <script type="text/javascript" src="paper-full.js"></script>
+
+  <script src="player.js" type="text/javascript"></script>
+  <script src="leg.js" type="text/javascript"></script>
+  <script src="bodyShape.js" type="text/javascript"></script>
+  <style>
+    canvas {
+        background-color: #f1f1f1;
+        width: 100%;
+        height: 100%;
+    }
+
+    html,body{
+        height:100%;
+    }
+
+    /* Set height of the grid so .sidenav can be 100% (adjust as needed) */
+    .row {
+        padding-top: 15px;
+        padding-bottom: 15px;
+    }
+
+    .flex-fill {
+        flex:1;
+    }
+
+    /* Set gray background color and 100% height */
+    .sidenav {
+      background-color: #f1f1f1;
+      padding-top: 15px;
+
+    }
+
+    table {
+      font-family: arial, sans-serif;
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+
+
+
+
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <a class="navbar-brand" href="#">Navbar</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarNavDropdown">
+    <ul class="navbar-nav">
+      <li class="nav-item active">
+        <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#">Features</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#">Pricing</a>
+      </li>
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          Dropdown link
+        </a>
+        <div class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+          <a class="dropdown-item" href="#">Action</a>
+          <a class="dropdown-item" href="#">Another action</a>
+          <a class="dropdown-item" href="#">Something else here</a>
+        </div>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container-fluid text-center d-flex h-100 flex-column justify-content-start">
+  <div class="row bg-light flex-fill justify-content-start flex-fill">
+    <div class="col-sm-2 sidenav" id="info">
+      <p><a href="#">Link</a></p>
+      <p><a href="#">Link</a></p>
+      <p><a href="#">Link</a></p>
+    </div>
+
+
+
+    <div id="game" class="p-2 flex-grow-1 flex-fill d-flex portlet-container portlet-dropzone">
+
+
+
+
+        <canvas id="canvas">Sorry, your browser doesn't support canvas.</canvas>
+
+        <script type="text/javascript">
+            var sock = null;
+            var wsuri = "ws://127.0.0.1:8080";
+
+
+            var fps = 60;
+            var players = {};
+            var food = {};
+
+            //
+            // Canvas
+            //
+            var canvas = document.getElementById('canvas');
+
+            context = canvas.getContext('2d');
+
+            paper.setup(canvas);
+
+            function fix_dpi() {
+                dpi = window.devicePixelRatio;
+                style = {
+                    height() {
+                        return +getComputedStyle(canvas).getPropertyValue('height').slice(0,-2);
+                    },
+                    width() {
+                        return +getComputedStyle(canvas).getPropertyValue('width').slice(0,-2);
+                    }
+                }
+                w = +getComputedStyle(canvas).getPropertyValue('height').slice(0,-2);
+                h = +getComputedStyle(canvas).getPropertyValue('width').slice(0,-2);
+
+                canvas.setAttribute('width', style.width() * dpi);
+                canvas.setAttribute('height', style.height() * dpi);
+            }
+
+
+
+            //
+            // Rendering
+            //
+            window.requestAnimationFrame(render);
+
+            window.onload = function() {
+
+                //
+                // Connection
+                //
+                sock = new WebSocket(wsuri);
+                sock.binaryType = "arraybuffer";
+
+
+
+                sock.onopen = function() {
+                    console.log("connected to " + wsuri);
+
+                    sock.send("Blubb");
+                }
+
+                sock.onclose = function(e) {
+                    console.log("connection closed (" + e.code + ")");
+                }
+                sock.onmessage = function(e) {
+
+                    var enc = new TextDecoder("utf-8");
+                    var decData = enc.decode(e.data);
+                    var m = JSON.parse(decData);
+
+
+                    // Add new players
+                    var newPlayers = m["newPlayer"];
+                    for (var key in newPlayers) {
+                        console.log("new player " + key)
+                        var id = newPlayers[key]["id"];
+                        var color = newPlayers[key]["color"];
+                        var name = newPlayers[key]["name"];
+
+                        players[id] = new Player(id, name, color, 0.0, [], []);
+
+
+                    }
+
+                    // Updated players
+                    var updatedPlayers = m["updatedPlayer"];
+                    for (var key in updatedPlayers) {
+                        var id = updatedPlayers[key]["id"];
+                        if (id in players) {
+                            //console.log("update player " + id)
+                            players[id].updateSize(updatedPlayers[key]["size"])
+                            players[id].updatePositions(updatedPlayers[key]["positions"]);
+                            players[id].updateBullets(updatedPlayers[key]["bullets"]);
+                        }
+                    }
+
+                    // Removed players
+                    var removedPlayers = m["removedPlayer"];
+                    for (var key in removedPlayers) {
+                        var id = removedPlayers[key];
+                        console.log("removed player " + id)
+                        delete players[id];
+                    }
+
+                    // New food
+                    var newFood = m["newFood"];
+                    for (var key in newFood) {
+                        var id  = newFood[key]["id"];
+                        if (!(id in food)) {
+                            food[id] = newFood[key];
+                        }
+                    }
+
+                    // Removed food
+                    var removedFood = m["removedFood"];
+                    for (var key in removedFood) {
+                        var id = removedFood[key];
+                        delete food[id];
+                    }
+
+                    botInfo();
+
+                }
+
+
+            };
+
+            function animate() {
+                setTimeout(function() {
+                    window.requestAnimationFrame(render);
+                }, 1000 / fps);
+            }
+
+            function render() {
+                //fix_dpi();
+
+
+
+                context.setTransform(1, 0, 0, 1, 0, 0);
+                context.clearRect(0, 0, canvas.width, canvas.height);
+
+                context.scale(0.3, 0.3);
+
+                context.font="14px Arial";
+
+                // Draw food
+                for (var i in food) {
+                    var f = food[i];
+                    var pos = f["p"]
+                    var s = f["s"]
+
+                    color = "rgb(100, 100, 100)";
+                    context.fillStyle = color;
+
+                    var px = pos[0];
+                    var py = pos[1];
+                    context.fillRect(px, py, 1+2*s,1+2*s);
+                }
+
+                // Draw players
+                for (var key in players) {
+                    var p = players[key];
+
+                    p.drawBug(context);
+
+                    color = "rgb(" + p.color[0] + ", " + p.color[1] + ", " + p.color[2] + ")";
+                    context.fillStyle = color;
+
+                    for (var i = 0; i < p.positions.length; i++) {
+                        var pos = p.positions[i]
+
+                        context.beginPath();
+                        var px = pos.getX();
+                        var py = pos.getY();
+                        context.arc(px, py, p.size, 0, 2 * Math.PI, false);
+                        context.fill();
+                        context.stroke();
+                    }
+
+                    context.globalAlpha = 0.07;
+                    context.beginPath();
+                    context.arc(p.positions[0].getX(), p.positions[0].getY(), 120, 0, 2*Math.PI, false);
+                    context.fill();
+
+                    context.beginPath();
+                    context.arc(p.positions[0].getX(), p.positions[0].getY(), 200, 0, 2*Math.PI, false);
+                    context.fill();
+                    context.globalAlpha = 1.0;
+
+                    // Draw bullets
+                    for (var i = 0; i < p.bullets.length; i++) {
+                        var pos = p.bullets[i]
+
+                        color = "rgb(" + p.color[0] + ", " + p.color[1] + ", " + p.color[2] + ")";
+                        context.fillStyle = color;
+
+                        var px = pos[0];
+                        var py = pos[1];
+                        context.fillRect(px, py, 5,5);
+                    }
+
+                    // Draw name
+                    context.fillStyle = "rgb(0,0,0)";
+                    context.fillText(p.name, p.positions[0].getX()+10, p.positions[0].getY());
+                }
+
+
+
+                //window.requestAnimationFrame(render);
+                animate();
+
+            };
+
+            function botInfo() {
+
+                var makeList = function() {
+                    var makeLine = function(id, name, size) {
+                        return "<tr>"+"<td>"+id+"</td>"+"<td>"+name+"</td>"+"<td>"+size+"</td>"+"</tr>"
+                    };
+
+                    var s = "<table style=\"width:80%\">";
+                    s = s + "<tr><th>ID</th><th>Name</th><th>Size</th></tr>";
+                    for (var key in players) {
+                        s += makeLine(key, players[key].name, players[key].size)
+                    }
+                    var s = s + "</table>";
+
+
+
+                    return s;
+                };
+
+                var container = makeList();
+
+
+                var myDiv = document.getElementById("info");
+                myDiv.innerHTML = container;
+            }
+
+
+
+
+        </script>
+
+
+
+
+    </div>
+    <div class="col-sm-2 sidenav">
+      <div class="well">
+        <p>ADS</p>
+      </div>
+      <div class="well">
+        <p>ADS</p>
+      </div>
+    </div>
+
+</div>
+
+<footer class="container-fluid text-center bg-dark">
+  <p>Footer Text</p>
+</footer>
+
+</body>
+</html>

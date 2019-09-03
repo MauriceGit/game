@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<!-- Load the Paper.js library -->
+<script type="text/javascript" src="paper-full.js"></script>
+<!-- Define inlined PaperScript associate it with myCanvas -->
+<canvas id="canvas">Sorry, your browser doesn't support canvas.</canvas>
+
+<script type="text/javascript">
+
+
+
+            //
+            // Rendering
+            //
+            window.requestAnimationFrame(render);
+
+            window.onload = function() {
+
+                //
+                // Connection
+                //
+                sock = new WebSocket(wsuri);
+                sock.binaryType = "arraybuffer";
+
+                console.log("dfsdf");
+
+                sock.onopen = function() {
+                    console.log("connected to " + wsuri);
+
+                    sock.send("Blubb");
+                }
+
+                sock.onclose = function(e) {
+                    console.log("connection closed (" + e.code + ")");
+                }
+                sock.onmessage = function(e) {
+
+                }
+
+                // Get a reference to the canvas object
+                var canvas = document.getElementById('canvas');
+                // Create an empty project and a view for the canvas:
+                paper.setup(canvas);
+                // Create a Paper.js Path to draw a line into it:
+                var path = new paper.Path();
+                // Give the stroke a color
+                path.strokeColor = 'black';
+                var start = new paper.Point(100, 100);
+                // Move to start and draw a line from there
+                path.moveTo(start);
+                // Note that the plus operator on Point objects does not work
+                // in JavaScript. Instead, we need to call the add() function:
+                path.lineTo(start.add([ 200, -50 ]));
+                // Draw the view now:
+                paper.view.draw();
+
+
+            };
+
+            function render() {
+
+
+
+                window.requestAnimationFrame(render);
+
+            };
+
+
+
+</script>
+</head>
+<body>
+    <canvas id="myCanvas" resize></canvas>
+</body>
+</html>

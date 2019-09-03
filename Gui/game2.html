@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Game</title>
+  <meta charset="utf-8">
+
+
+
+
+  <script src="player.js" type="text/javascript"></script>
+  <script src="leg.js" type="text/javascript"></script>
+  <script src="bodyShape.js" type="text/javascript"></script>
+
+  <link href="Tabulator/css/tabulator.css" rel="stylesheet">
+  <script type="text/javascript" src="Tabulator/js/tabulator.js"></script>
+
+  <style>
+    canvas {
+        background-color: #f1f1f1;
+    }
+    html,body{
+    }
+
+    game {
+        height: 100vh;
+        width: 100vh;
+    }
+
+    table {
+      font-family: arial, sans-serif;
+      border-collapse: collapse;
+      width: 100v;
+    }
+    td, th {
+      border: 1px solid #dddddd;
+      text-align: left;
+      padding: 8px;
+    }
+    tr:nth-child(even) {
+      background-color: #dddddd;
+    }
+
+    .container{
+        display: flex;
+    }
+    .fixed{
+        width: 200px;
+    }
+    .flex-item{
+        flex-grow: 1;
+    }
+
+
+  </style>
+</head>
+<body>
+
+
+
+<div>
+  <div style="width: 100%; overflow: hidden;">
+    <div id="info" style="width: 400px; float: left;">
+
+    <div id="example-table"></div>
+
+    </div>
+
+    <div id="game">
+
+        <canvas id="canvas">Sorry, your browser doesn't support canvas.</canvas>
+
+        <script type="text/javascript">
+            var sock = null;
+            var wsuri = "ws://127.0.0.1:8080";
+
+
+            var fps = 60;
+            var players = {};
+            var food = {};
+
+            var options = {
+                valueNames: [ 'ID', 'Name', 'Size' ]
+            };
+
+            var tabledata = [];
+
+            var updateCount = 0;
+
+            var table = new Tabulator("#example-table", {
+                //height:"511px",
+                layout:"fitColumns",
+                reactiveData:true, //turn on data reactivity
+                data:tabledata, //load data into table
+                columns:[
+                {title:"Color", field:"col", formatter:"color"},
+                {title:"Name",  field:"name"},
+                {title:"Size",  field:"size", sorter:"number"},
+                ],
+            });
+
+            //
+            // Canvas
+            //
+            var canvas = document.getElementById('canvas');
+            var game = document.getElementById("game");
+
+            console.log("game: " + game.getBoundingClientRect().width + " " + game.getBoundingClientRect().height)
+
+
+
+            var resizeCanvas = function() {
+                canvas.width  = window.innerWidth-500;
+                canvas.height = window.innerHeight-100;
+            };
+            window.onresize = function(event) {
+                resizeCanvas();
+            };
+            resizeCanvas();
+
+
+            context = canvas.getContext('2d');
+
+            //
+            // Rendering
+            //
+            window.requestAnimationFrame(render);
+
+            function rgbToHex(r, g, b) {
+              return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+            }
+
+            window.onload = function() {
+
+                //
+                // Connection
+                //
+                sock = new WebSocket(wsuri);
+                sock.binaryType = "arraybuffer";
+
+
+
+                sock.onopen = function() {
+                    console.log("connected to " + wsuri);
+
+                    sock.send("Blubb");
+                }
+
+                sock.onclose = function(e) {
+                    console.log("connection closed (" + e.code + ")");
+                }
+                sock.onmessage = function(e) {
+
+                    var enc = new TextDecoder("utf-8");
+                    var decData = enc.decode(e.data);
+                    var m = JSON.parse(decData);
+
+                    //var table = document.getElementById("playerInfoTable");
+
+                    // Add new players
+                    var newPlayers = m["newPlayer"];
+                    for (var key in newPlayers) {
+                        console.log("new player " + key)
+                        var id = newPlayers[key]["id"];
+                        var color = newPlayers[key]["color"];
+                        var name = newPlayers[key]["name"];
+
+                        players[id] = new Player(id, name, color, 0.0, [], [], tabledata.length);
+
+                        c = "rgb(" + color[0] + ", " + color[1] + ", " + color[2] + ")";
+                        tabledata.push({col:c, name:name, size:3.0});
+                    }
+
+                    // Updated players
+                    var updatedPlayers = m["updatedPlayer"];
+                    for (var key in updatedPlayers) {
+                        var id = updatedPlayers[key]["id"];
+                        if (id in players) {
+                            //console.log("update player " + id)
+                            players[id].updateSize(updatedPlayers[key]["size"])
+                            players[id].updatePositions(updatedPlayers[key]["positions"]);
+                            players[id].updateBullets(updatedPlayers[key]["bullets"]);
+
+                            // Update the highscore roughly 6x per second or every 10 incoming updates.
+                            if (updateCount%10 == 0) {
+                                tabledata[players[id].highScoreIndex].size = players[id].size.toFixed(2);
+                            }
+                        }
+                    }
+
+                    if (updateCount%60 == 0) {
+                        var sorters = table.getSorters();
+                        if (sorters.length == 0 ) {
+                            table.setSort([
+                                {column:"size", dir:"desc"},
+                            ]);
+                        } else {
+                            table.setSort([
+                                {column:sorters[0].column, dir:sorters[0].dir},
+                            ]);
+                        }
+                    }
+
+                    // Removed players
+                    var removedPlayers = m["removedPlayer"];
+                    for (var key in removedPlayers) {
+                        var id = removedPlayers[key];
+                        console.log("removed player " + id)
+                        delete players[id];
+                    }
+
+                    // New food
+                    var newFood = m["newFood"];
+                    for (var key in newFood) {
+                        var id  = newFood[key]["id"];
+                        if (!(id in food)) {
+                            food[id] = newFood[key];
+                        }
+                    }
+
+                    // Removed food
+                    var removedFood = m["removedFood"];
+                    for (var key in removedFood) {
+                        var id = removedFood[key];
+                        delete food[id];
+                    }
+
+                    updateCount = updateCount+1;
+                }
+
+
+            };
+
+
+
+            function animate() {
+                setTimeout(function() {
+                    window.requestAnimationFrame(render);
+                }, 1000 / fps);
+            }
+
+            function render() {
+                //fix_dpi();
+
+                context.setTransform(1, 0, 0, 1, 0, 0);
+                context.clearRect(0, 0, canvas.width, canvas.height);
+
+                context.scale(0.6, 0.6);
+
+                context.font="14px Arial";
+
+                // Draw food
+                for (var i in food) {
+                    var f = food[i];
+                    var pos = f["p"]
+                    var s = f["s"]
+
+                    color = "rgb(100, 100, 100)";
+                    context.fillStyle = color;
+
+                    var px = pos[0];
+                    var py = pos[1];
+                    context.fillRect(px, py, 1+2*s,1+2*s);
+                }
+
+                // Draw players
+                for (var key in players) {
+                    var p = players[key];
+
+                    p.drawBug(context);
+
+                    color = "rgb(" + p.color[0] + ", " + p.color[1] + ", " + p.color[2] + ")";
+                    context.fillStyle = color;
+
+                    for (var i = 0; i < p.positions.length; i++) {
+                        var pos = p.positions[i]
+
+                        context.beginPath();
+                        var px = pos.getX();
+                        var py = pos.getY();
+                        context.arc(px, py, p.size, 0, 2 * Math.PI, false);
+                        context.fill();
+                        context.stroke();
+                    }
+
+                    context.globalAlpha = 0.07;
+                    context.beginPath();
+                    context.arc(p.positions[0].getX(), p.positions[0].getY(), 120, 0, 2*Math.PI, false);
+                    context.fill();
+
+                    context.beginPath();
+                    context.arc(p.positions[0].getX(), p.positions[0].getY(), 200, 0, 2*Math.PI, false);
+                    context.fill();
+                    context.globalAlpha = 1.0;
+
+                    // Draw bullets
+                    for (var i = 0; i < p.bullets.length; i++) {
+                        var pos = p.bullets[i]
+
+                        color = "rgb(" + p.color[0] + ", " + p.color[1] + ", " + p.color[2] + ")";
+                        context.fillStyle = color;
+
+                        var px = pos[0];
+                        var py = pos[1];
+                        context.fillRect(px, py, 5,5);
+                    }
+
+                    // Draw name
+                    context.fillStyle = "rgb(0,0,0)";
+                    context.fillText(p.name, p.positions[0].getX()+10, p.positions[0].getY());
+                }
+
+
+
+                //window.requestAnimationFrame(render);
+                animate();
+
+            };
+
+            function sortTable(tableName, n) {
+              var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+              table = document.getElementById(tableName);
+              switching = true;
+              // Set the sorting direction to ascending:
+              dir = "asc";
+              /* Make a loop that will continue until
+              no switching has been done: */
+              while (switching) {
+                // Start by saying: no switching is done:
+                switching = false;
+                rows = table.rows;
+                /* Loop through all table rows (except the
+                first, which contains table headers): */
+                for (i = 1; i < (rows.length - 1); i++) {
+                  // Start by saying there should be no switching:
+                  shouldSwitch = false;
+                  /* Get the two elements you want to compare,
+                  one from current row and one from the next: */
+                  x = rows[i].getElementsByTagName("td")[n];
+                  y = rows[i + 1].getElementsByTagName("td")[n];
+                  /* Check if the two rows should switch place,
+                  based on the direction, asc or desc: */
+                  if (dir == "asc") {
+                    if (x.innerHTML > y.innerHTML) {
+                      // If so, mark as a switch and break the loop:
+                      shouldSwitch = true;
+                      break;
+                    }
+                  } else if (dir == "desc") {
+                    if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                      // If so, mark as a switch and break the loop:
+                      shouldSwitch = true;
+                      break;
+                    }
+                  }
+                }
+                if (shouldSwitch) {
+                  /* If a switch has been marked, make the switch
+                  and mark that a switch has been done: */
+                  rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                  switching = true;
+                  // Each time a switch is done, increase this count by 1:
+                  switchcount ++;
+                } else {
+                  /* If no switching has been done AND the direction is "asc",
+                  set the direction to "desc" and run the while loop again. */
+                  if (switchcount == 0 && dir == "asc") {
+                    dir = "desc";
+                    switching = true;
+                  }
+                }
+              }
+            }
+
+
+
+        </script>
+
+
+
+
+    </div>
+
+
+</div>
+
+</body>
+</html>
