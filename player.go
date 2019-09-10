@@ -13,12 +13,12 @@ const (
 	PLAYER_SEGMENT_SIZE      = 15.0
 	PLAYER_MAX_SEGMENT_COUNT = 5
 	PLAYER_INITIAL_SIZE      = 5
-	PLAYER_MAX_SIZE          = 20.0
+	PLAYER_MAX_SIZE          = 35.0
 	PLAYER_MIN_SIZE          = 2.0
 	PLAYER_SPEED             = 1.5
-	PLAYER_SIZE_REDUCTION    = 0.999
+	PLAYER_SIZE_REDUCTION    = 0.01
 	BULLET_RANGE             = 300
-	BULLET_MIN_DAMAGE        = 0.2
+	BULLET_MIN_DAMAGE        = 0.3
 	BULLET_DAMAGE            = 1.0
 )
 
@@ -104,14 +104,16 @@ func (p *Player) calcUpdate(app *Application, output PlayerOutput) []BulletHit {
 
 	if dir.Len() < 0.5 {
 		if dir.Len() <= EPS {
-			dir[0] += EPS
+			dir[0] = EPS
+			dir[1] = EPS
 		}
-		dir = dir.Normalize().Mul(0.5).Mul(PLAYER_SPEED)
+		dir = dir.Normalize()
 	}
+	dir = dir.Mul(PLAYER_SPEED)
 
 	p.Pos[0] = p.Pos[0].Add(dir)
 
-	p.Size *= PLAYER_SIZE_REDUCTION
+	p.Size -= PLAYER_SIZE_REDUCTION + p.Size*0.0001
 
 	if p.Size > PLAYER_MAX_SIZE {
 		p.Size = PLAYER_MAX_SIZE
@@ -137,10 +139,8 @@ func (p *Player) calcUpdate(app *Application, output PlayerOutput) []BulletHit {
 
 			app.playerTree.Search(min, max,
 				func(min, max []float64, value interface{}) bool {
-					//hitPlayers = append(hitPlayers, value.(int))
 
 					pId := value.(int)
-					//tmpP := app.Players[pId]
 
 					if pId == p.Id {
 						return true

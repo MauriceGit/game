@@ -18,9 +18,9 @@ type Shooting int
 
 const (
 	EPS                       = 0.0000001
-	MAX_PLAYER_COUNT          = 13
-	MAX_FOOD_COUNT            = 5000
-	MAX_FOOD_SIZE             = 2.5
+	MAX_PLAYER_COUNT          = 20
+	MAX_FOOD_COUNT            = 2000
+	MAX_FOOD_SIZE             = 0.9
 	DEFAULT          Shooting = iota
 	NEW_BULLET                = iota
 )
@@ -190,6 +190,9 @@ func runSimulation(app *Application) {
 			guiRemovedFood = append(guiRemovedFood, app.manageFood()...)
 
 			app.Players[k].Player.availableShots += 0.01
+			if app.Players[k].Player.availableShots > float32(app.Players[k].Player.maxAvailableShots) {
+				app.Players[k].Player.availableShots = float32(app.Players[k].Player.maxAvailableShots)
+			}
 
 			// Re-insert the updated player position and ID into the tree for the next round
 			app.playerTree.Delete(playerTreePos, nil, v.Player.Id)
@@ -214,10 +217,24 @@ func runSimulation(app *Application) {
 				s := app.Players[v.shooter].Player
 				t := app.Players[v.target].Player
 				//sizeBeforeHit := app.Players[v.target].Player.Size
-				app.Players[v.target].Player.Size -= float32(math.Min(float64(s.attackStrength+BULLET_DAMAGE-t.defense), BULLET_MIN_DAMAGE))
+
+				app.Players[v.target].Player.Size -= float32(math.Max(float64(s.attackStrength+BULLET_DAMAGE-t.defense), BULLET_MIN_DAMAGE))
 
 				if app.Players[v.target].Player.Size <= PLAYER_MIN_SIZE {
 					guiRemovedPlayer = append(guiRemovedPlayer, v.target)
+
+					//					switch rand.Int() % 5 {
+					//					case 0:
+					//						app.Players[v.shooter].Player.defense += 1.5
+					//					case 1:
+					//						app.Players[v.shooter].Player.viewRadius += 20
+					//					case 2:
+					//						app.Players[v.shooter].Player.attackStrength += 1.5
+					//					case 3:
+					//						app.Players[v.shooter].Player.attackRadius += 20
+					//					case 4:
+					//						app.Players[v.shooter].Player.maxAvailableShots += 5
+					//					}
 				}
 			}
 

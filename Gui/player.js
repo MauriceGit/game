@@ -74,6 +74,9 @@ class Player {
         this.size = size;
     }
 
+    updateHighscoreIndex(index) {
+        this.highScoreIndex = index;
+    }
 
 
     updatePositions(positions) {

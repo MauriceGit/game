@@ -15,10 +15,10 @@ var (
 )
 
 func initPlayerTank(p *Player) {
-	p.Name = p.Name + "_tank"
+	//p.Name = p.Name
 	p.defense = 4.0
 	p.viewRadius = 200.0
-	p.attackStrength = 4.0
+	p.attackStrength = 2.0
 	p.attackRadius = 120.0
 	p.maxAvailableShots = 10
 	p.availableShots = 10
@@ -121,7 +121,7 @@ func runPlayerTank(p *Player, output chan PlayerOutput) {
 				enemy := data.PlayerDict[enemyTarget].Player
 				enemyDistance := enemy.Pos[0].Sub(p.Pos[0]).Len()
 
-				if enemy.Size > (p.Size*2.0) || p.availableShots < 1 {
+				if enemy.Size > (p.Size*1.1) || p.availableShots < 1 {
 					// Flee in the opposite direction
 					target = p.Pos[0].Sub(enemy.Pos[0]).Add(p.Pos[0])
 					timedTargetAcquired = true

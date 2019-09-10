@@ -92,6 +92,8 @@
                 reactiveData:true, //turn on data reactivity
                 data:tabledata, //load data into table
                 columns:[
+                // The id is still maintained in the Array. But not drawn to the screen.
+                {title:"ID",  field:"id", sorter:"number"},
                 {title:"Color", field:"col", formatter:"color"},
                 {title:"Name",  field:"name"},
                 {title:"Size",  field:"size", sorter:"number"},
@@ -154,7 +156,34 @@
                     var decData = enc.decode(e.data);
                     var m = JSON.parse(decData);
 
-                    //var table = document.getElementById("playerInfoTable");
+
+                    // Removed players
+                    var removedPlayers = m["removedPlayer"];
+                    for (var key in removedPlayers) {
+                        var id = removedPlayers[key];
+                        console.log("removed player " + id)
+
+                        // New players will always get the very last index of our table.
+                        // So to ensure a clean remove/new for indices, we will swap the
+                        // indices of this player and the last one and remove the last index.
+                        // This will then be rewritten when a new id will be introduced.
+                        // This is the reason, it is crucial to first remove players, before
+                        // introducing another one (per frame!)
+                        var tableIndex = players[id].highScoreIndex;
+
+                        // Deep copy... Just assigning doesn't seem to work.
+                        tabledata[tableIndex].id = tabledata[tabledata.length-1].id;
+                        tabledata[tableIndex].col = tabledata[tabledata.length-1].col;
+                        tabledata[tableIndex].name = tabledata[tabledata.length-1].name;
+                        tabledata[tableIndex].size = tabledata[tabledata.length-1].size;
+
+                        players[tabledata[tableIndex].id].updateHighscoreIndex(tableIndex);
+
+                        tabledata.pop();
+
+
+                        delete players[id];
+                    }
 
                     // Add new players
                     var newPlayers = m["newPlayer"];
@@ -167,7 +196,7 @@
                         players[id] = new Player(id, name, color, 0.0, [], [], tabledata.length);
 
                         c = "rgb(" + color[0] + ", " + color[1] + ", " + color[2] + ")";
-                        tabledata.push({col:c, name:name, size:3.0});
+                        tabledata.push({id: id, col:c, name:name, size:3.0});
                     }
 
                     // Updated players
@@ -181,9 +210,9 @@
                             players[id].updateBullets(updatedPlayers[key]["bullets"]);
 
                             // Update the highscore roughly 6x per second or every 10 incoming updates.
-                            if (updateCount%10 == 0) {
+                            //if (updateCount%10 == 0) {
                                 tabledata[players[id].highScoreIndex].size = players[id].size.toFixed(2);
-                            }
+                            //}
                         }
                     }
 
@@ -200,13 +229,7 @@
                         }
                     }
 
-                    // Removed players
-                    var removedPlayers = m["removedPlayer"];
-                    for (var key in removedPlayers) {
-                        var id = removedPlayers[key];
-                        console.log("removed player " + id)
-                        delete players[id];
-                    }
+
 
                     // New food
                     var newFood = m["newFood"];
@@ -315,62 +338,6 @@
                 animate();
 
             };
-
-            function sortTable(tableName, n) {
-              var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
-              table = document.getElementById(tableName);
-              switching = true;
-              // Set the sorting direction to ascending:
-              dir = "asc";
-              /* Make a loop that will continue until
-              no switching has been done: */
-              while (switching) {
-                // Start by saying: no switching is done:
-                switching = false;
-                rows = table.rows;
-                /* Loop through all table rows (except the
-                first, which contains table headers): */
-                for (i = 1; i < (rows.length - 1); i++) {
-                  // Start by saying there should be no switching:
-                  shouldSwitch = false;
-                  /* Get the two elements you want to compare,
-                  one from current row and one from the next: */
-                  x = rows[i].getElementsByTagName("td")[n];
-                  y = rows[i + 1].getElementsByTagName("td")[n];
-                  /* Check if the two rows should switch place,
-                  based on the direction, asc or desc: */
-                  if (dir == "asc") {
-                    if (x.innerHTML > y.innerHTML) {
-                      // If so, mark as a switch and break the loop:
-                      shouldSwitch = true;
-                      break;
-                    }
-                  } else if (dir == "desc") {
-                    if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
-                      // If so, mark as a switch and break the loop:
-                      shouldSwitch = true;
-                      break;
-                    }
-                  }
-                }
-                if (shouldSwitch) {
-                  /* If a switch has been marked, make the switch
-                  and mark that a switch has been done: */
-                  rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                  switching = true;
-                  // Each time a switch is done, increase this count by 1:
-                  switchcount ++;
-                } else {
-                  /* If no switching has been done AND the direction is "asc",
-                  set the direction to "desc" and run the while loop again. */
-                  if (switchcount == 0 && dir == "asc") {
-                    dir = "desc";
-                    switching = true;
-                  }
-                }
-              }
-            }
-
 
 
         </script>
